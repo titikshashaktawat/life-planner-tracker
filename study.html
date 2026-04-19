@@ -1,0 +1,39 @@
+```html
+{% extends "base.html" %}
+{% block content %}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='study.css') }}">
+
+<div class="container">
+  <div class="card">
+
+    <h2>📚 Study To-Do List</h2>
+
+    <!-- ADD TASK -->
+    <form method="POST">
+  <input type="text" name="task" placeholder="Enter study task..." required>
+  <button type="submit">Add</button>
+</form>
+
+    <!-- TASK LIST -->
+    <ul>
+  {% for task in tasks %}
+  
+  <li class="{{ 'done' if task[5] == 'Done' }}">
+    
+    <span>{{ task[1] }}</span>
+
+    <div class="actions">
+      <a href="/complete/{{ task[0] }}">✔</a>
+      <a href="/delete/{{ task[0] }}">❌</a>
+    </div>
+
+  </li>
+
+  {% endfor %}
+</ul>
+  </div>
+</div>
+
+{% endblock %}
+```

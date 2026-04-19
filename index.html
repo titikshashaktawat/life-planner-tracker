@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block content %}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
+<div class="container">
+  <div class="card">
+
+    <h2>✨ My To-Do App ✨</h2>
+
+    <!-- 🔗 QUICK NAV -->
+    <div class="quick-nav">
+      <a href="/">⚡ Dashboard</a>
+      <a href="/study">📚 Study</a>
+      <a href="/workout">🏋️ Workout</a>
+      <a href="/period">🩸 Period</a>
+    </div>
+
+    <!-- 💡 Motivation -->
+    <p id="msg"></p>
+
+    <!-- 📊 MINI STATS -->
+    <div class="mini-stats">
+      <p id="studyMini">📚 0h</p>
+      <p id="workoutMini">🏋️ 0</p>
+      <p id="periodMini">🩸 -</p>
+    </div>
+
+    <!-- 🎯 Suggestions -->
+    <div class="suggestions">
+      <button onclick="fill('Study for exam')">📚</button>
+      <button onclick="fill('Workout')">🏋️</button>
+      <button onclick="fill('Drink water')">💧</button>
+      <button onclick="fill('Read book')">📖</button>
+    </div>
+
+    <!-- 🔍 SEARCH + FILTER -->
+    <div class="search-filter">
+  <input type="text" id="search" placeholder="🔍 Search tasks..." onkeyup="searchTask()">
+  
+  <select id="filter" onchange="filterTasks()">
+    <option value="all">All</option>
+    <option value="Study">Study</option>
+    <option value="Health">Health</option>
+    <option value="Personal">Personal</option>
+    <option value="Work">Work</option>
+  </select>
+</div>
+
+    <!-- 📝 FORM -->
+    <form action="/add" method="POST" class="task-form">
+
+  <input type="text" name="task" placeholder="✍️ Enter your task..." required>
+
+  <select name="priority">
+    <option>High</option>
+    <option>Medium</option>
+    <option>Low</option>
+  </select>
+
+  <select name="category">
+    <option>Study</option>
+    <option>Health</option>
+    <option>Personal</option>
+    <option>Work</option>
+  </select>
+
+  <select name="recurring">
+    <option>None</option>
+    <option>Daily</option>
+    <option>Weekly</option>
+  </select>
+
+  <button type="submit">➕ Add Task</button>
+
+</form>
+
+    <!-- 📈 PROGRESS -->
+    <div class="progress">
+      <div class="bar" style="width: {{progress}}%"></div>
+    </div>
+    <p style="text-align:center;color:#f5e6d3;">{{progress}}% completed</p>
+
+    <!-- 📋 TASK LIST -->
+    <ul>
+    {% for t in tasks %}
+      <li data-category="{{t[3]}}"
+          style="{% if t[5]=='Done' %}text-decoration:line-through;{% endif %}">
+
+        <div>
+          <b>{{ t[1] }}</b>
+          <small>{{ t[2] }} | {{ t[3] }} | {{ t[4] }}</small>
+        </div>
+
+        <div>
+          <a href="/complete/{{ t[0] }}">✔</a>
+          <a href="/delete/{{ t[0] }}">❌</a>
+        </div>
+
+      </li>
+    {% endfor %}
+    </ul>
+
+  </div>
+</div>
+
+<script>
+
+// ===== QUICK FILL =====
+function fill(t){
+  document.querySelector('input[name="task"]').value = t;
+}
+
+// ===== SEARCH =====
+function searchTask(){
+  let val = document.getElementById("search").value.toLowerCase();
+  document.querySelectorAll("ul li").forEach(li=>{
+    li.style.display = li.innerText.toLowerCase().includes(val) ? "" : "none";
+  });
+}
+
+// ===== FILTER =====
+function filterTasks(){
+  let val = document.getElementById("filter").value;
+  document.querySelectorAll("ul li").forEach(li=>{
+    li.style.display = (val=="all" || li.dataset.category==val) ? "" : "none";
+  });
+}
+
+// ===== MOTIVATION =====
+let msgs = ["Keep going 💖","Small steps matter 🌱","You got this ✨","Stay consistent 💪"];
+document.getElementById("msg").innerText =
+  msgs[Math.floor(Math.random()*msgs.length)];
+
+// ===== MINI DASHBOARD =====
+
+// Study
+let study = JSON.parse(localStorage.getItem("studyData")) || [];
+let today = new Date().toISOString().split("T")[0];
+let hrs = 0;
+study.forEach(d=>{
+  if(d.date===today) hrs+=d.hrs;
+});
+document.getElementById("studyMini").innerText = "📚 " + hrs + "h";
+
+// Workout
+let fitness = JSON.parse(localStorage.getItem("fitness2026")) || {};
+let total = 0;
+Object.values(fitness).forEach(m=> total+=m.length);
+document.getElementById("workoutMini").innerText = "🏋️ " + total;
+
+// Period
+let period = JSON.parse(localStorage.getItem("periodData")) || [];
+if(period.length >= 2){
+  let d1 = new Date(period[period.length-2]);
+  let d2 = new Date(period[period.length-1]);
+  let cycle = Math.round((d2-d1)/(1000*60*60*24));
+
+  let next = new Date(d2);
+  next.setDate(next.getDate()+cycle);
+
+  document.getElementById("periodMini").innerText =
+    "🩸 " + next.toISOString().split("T")[0];
+}
+
+</script>
+
+{% endblock %}
