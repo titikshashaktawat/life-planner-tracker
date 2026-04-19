@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container">
+  <div class="workout-wrapper">
+
+    <h2>🏋️ 2026 Fitness Dashboard</h2>
+
+    <div class="top-stats">
+      <p id="yearTotal">🏆 Total: 0</p>
+      <p id="streak">🔥 Streak: 0</p>
+      <p id="longest">🏅 Longest: 0</p>
+    </div>
+
+    <!-- 🧠 Insights -->
+    <div class="insights-box">
+      <h3>🧠 Insights</h3>
+      <ul id="insights"></ul>
+    </div>
+
+    <!-- 📊 Chart -->
+    <canvas id="chart" height="100"></canvas>
+
+    <!-- 📅 Months -->
+    <div id="months"></div>
+
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// ===== IMAGE PATHS (SAFE USING FLASK) =====
+const images = [
+  "{{ url_for('static', filename='workout1.jpg') }}",
+  "{{ url_for('static', filename='workout2.jpg') }}",
+  "{{ url_for('static', filename='workout3.jpg') }}",
+  "{{ url_for('static', filename='workout4.jpg') }}"
+];
+
+// ===== MONTH DATA =====
+const months = [
+  {name:"Jan",days:31},{name:"Feb",days:28},{name:"Mar",days:31},
+  {name:"Apr",days:30},{name:"May",days:31},{name:"Jun",days:30},
+  {name:"Jul",days:31},{name:"Aug",days:31},{name:"Sep",days:30},
+  {name:"Oct",days:31},{name:"Nov",days:30},{name:"Dec",days:31}
+];
+
+let data = JSON.parse(localStorage.getItem("fitness2026")) || {};
+
+// ===== CHART =====
+let chart;
+
+function updateChart(){
+  let vals = months.map(m => (data[m.name] || []).length);
+
+  if(chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels: months.map(m => m.name),
+      datasets: [{
+        data: vals,
+        tension: 0.4,
+        fill: true,
+        borderColor: "#c89f7a",
+        backgroundColor: "rgba(166,124,82,0.2)",
+        pointBackgroundColor: "#f5e6d3"
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: { color: "#f5e6d3" },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: "#f5e6d3" },
+          grid: { color: "rgba(255,255,255,0.08)" }
+        }
+      }
+    }
+  });
+}
+
+// ===== STREAK =====
+function calculateStreak(){
+  let days = [];
+
+  Object.entries(data).forEach(([month, arr], i)=>{
+    arr.forEach(d=>{
+      days.push(i*31 + d);
+    });
+  });
+
+  days.sort((a,b)=>a-b);
+
+  let streak=0, longest=0;
+
+  for(let i=0;i<days.length;i++){
+    if(i===0 || days[i]===days[i-1]+1){
+      streak++;
+      longest=Math.max(longest,streak);
+    } else {
+      streak=1;
+    }
+  }
+
+  document.getElementById("streak").innerText="🔥 Streak: "+streak;
+  document.getElementById("longest").innerText="🏅 Longest: "+longest;
+}
+
+// ===== INSIGHTS =====
+function updateInsights(){
+  let list = document.getElementById("insights");
+  list.innerHTML = "";
+
+  let total = 0;
+  let bestMonth = "";
+  let max = 0;
+
+  months.forEach(m=>{
+    let c = (data[m.name] || []).length;
+    total += c;
+
+    if(c > max){
+      max = c;
+      bestMonth = m.name;
+    }
+  });
+
+  function add(text){
+    let li = document.createElement("li");
+    li.innerText = text;
+    list.appendChild(li);
+  }
+
+  if(total === 0){
+    add("😴 You haven’t started yet.");
+  } else {
+    add("🔥 You worked out " + total + " days this year");
+  }
+
+  if(bestMonth){
+    add("🏆 Best month: " + bestMonth + " ("+max+" days)");
+  }
+
+  let consistency = Math.floor((total/365)*100);
+  add("📊 Consistency: " + consistency + "%");
+}
+
+// ===== UPDATE =====
+function updateAll(){
+  let total=0;
+  Object.values(data).forEach(m=>total+=m.length);
+
+  document.getElementById("yearTotal").innerText="🏆 Total: "+total;
+
+  calculateStreak();
+  updateInsights();
+  updateChart();
+}
+
+// ===== BUILD UI =====
+const container=document.getElementById("months");
+
+months.forEach((m, index)=>{
+  if(!data[m.name]) data[m.name]=[];
+
+  let div=document.createElement("div");
+  div.className="month";
+
+  // ✅ SAFE IMAGE ASSIGN
+  div.style.backgroundImage = `url(${images[index % images.length]})`;
+
+  let title=document.createElement("h3");
+  title.innerText=m.name + " 2026";
+
+  let cal=document.createElement("div");
+  cal.className="calendar";
+
+  for(let i=1;i<=m.days;i++){
+    let d=document.createElement("div");
+    d.className="day";
+    d.innerText=i;
+
+    if(data[m.name].includes(i)) d.classList.add("active");
+
+    d.onclick=()=>{
+      d.classList.toggle("active");
+
+      if(d.classList.contains("active")){
+        data[m.name].push(i);
+      } else {
+        data[m.name]=data[m.name].filter(x=>x!==i);
+      }
+
+      localStorage.setItem("fitness2026",JSON.stringify(data));
+      updateAll();
+    };
+
+    cal.appendChild(d);
+  }
+
+  div.appendChild(title);
+  div.appendChild(cal);
+  container.appendChild(div);
+});
+
+updateAll();
+</script>
+
+{% endblock %}
