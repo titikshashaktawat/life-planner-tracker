@@ -1,13 +1,14 @@
 from flask import Flask, render_template, request, redirect
 import sqlite3
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 
+# ===== DATABASE =====
 def get_db():
     return sqlite3.connect("database.db")
 
-# ===== CREATE DATABASE =====
 def init_db():
     db = get_db()
     db.execute('''
@@ -34,7 +35,7 @@ def home():
 
     today = datetime.today().strftime("%Y-%m-%d")
 
-    # ===== SAFE RECURRING LOGIC =====
+    # Handle recurring tasks
     for t in tasks:
         if len(t) < 7:
             continue
@@ -43,36 +44,20 @@ def home():
         recurring = t[4]
         last_done = t[6] or ""
 
-        # DAILY
         if recurring == "Daily":
             if last_done != today:
-                db.execute(
-                    "UPDATE tasks SET status='Pending' WHERE id=?",
-                    (task_id,)
-                )
+                db.execute("UPDATE tasks SET status='Pending' WHERE id=?", (task_id,))
 
-        # WEEKLY
         elif recurring == "Weekly":
-            if last_done != "":
+            if last_done:
                 try:
                     last_date = datetime.strptime(last_done, "%Y-%m-%d")
-                    days = (datetime.today() - last_date).days
-
-                    if days >= 7:
-                        db.execute(
-                            "UPDATE tasks SET status='Pending' WHERE id=?",
-                            (task_id,)
-                        )
+                    if (datetime.today() - last_date).days >= 7:
+                        db.execute("UPDATE tasks SET status='Pending' WHERE id=?", (task_id,))
                 except:
-                    db.execute(
-                        "UPDATE tasks SET status='Pending' WHERE id=?",
-                        (task_id,)
-                    )
+                    db.execute("UPDATE tasks SET status='Pending' WHERE id=?", (task_id,))
             else:
-                db.execute(
-                    "UPDATE tasks SET status='Pending' WHERE id=?",
-                    (task_id,)
-                )
+                db.execute("UPDATE tasks SET status='Pending' WHERE id=?", (task_id,))
 
     db.commit()
 
@@ -81,28 +66,30 @@ def home():
 
     done = len([t for t in tasks if t[5] == "Done"])
     total = len(tasks)
-    progress = int((done/total)*100) if total else 0
+    progress = int((done / total) * 100) if total else 0
 
     return render_template("index.html", tasks=tasks, progress=progress)
-
 
 # ===== ADD TASK =====
 @app.route('/add', methods=['POST'])
 def add():
-    task = request.form['task']
-    priority = request.form['priority']
-    category = request.form['category']
-    recurring = request.form['recurring']
+    task = request.form.get('task')
+    priority = request.form.get('priority')
+    category = request.form.get('category')
+    recurring = request.form.get('recurring')
+
+    if not task:
+        return redirect('/')
 
     db = get_db()
     db.execute(
-        "INSERT INTO tasks (task, priority, category, recurring, status, last_done) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO tasks VALUES (NULL, ?, ?, ?, ?, ?, ?)",
         (task, priority, category, recurring, "Pending", "")
     )
     db.commit()
     db.close()
-    return redirect('/')
 
+    return redirect('/')
 
 # ===== COMPLETE TASK =====
 @app.route('/complete/<int:id>')
@@ -119,7 +106,6 @@ def complete(id):
 
     return redirect('/')
 
-
 # ===== DELETE TASK =====
 @app.route('/delete/<int:id>')
 def delete(id):
@@ -127,31 +113,28 @@ def delete(id):
     db.execute("DELETE FROM tasks WHERE id=?", (id,))
     db.commit()
     db.close()
+
     return redirect('/')
 
-
-# ===== OTHER PAGES =====
+# ===== WORKOUT PAGE =====
 @app.route('/workout')
 def workout():
     return render_template("workout.html")
 
+# ===== STUDY PAGE =====
 @app.route('/study', methods=['GET', 'POST'])
 def study():
     db = get_db()
 
     if request.method == 'POST':
-        print("FORM SUBMITTED")  # debug
-
         task = request.form.get('task')
-        print("TASK:", task)     # debug
 
         if task:
             db.execute(
-                "INSERT INTO tasks (task, priority, category, recurring, status, last_done) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO tasks VALUES (NULL, ?, ?, ?, ?, ?, ?)",
                 (task, "Medium", "Study", "None", "Pending", "")
             )
             db.commit()
-            print("INSERTED")    # debug
 
         return redirect('/study')
 
@@ -160,21 +143,15 @@ def study():
     ).fetchall()
 
     db.close()
+
     return render_template("study.html", tasks=tasks)
+
+# ===== PERIOD PAGE =====
 @app.route('/period')
 def period():
     return render_template("period.html")
 
-
 # ===== RUN APP =====
-@app.route('/')
-def home():
-    db = get_db()
-    tasks = db.execute("SELECT * FROM tasks").fetchall()
-    db.close()
-    return render_template("index.html", tasks=tasks)
-import os
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
