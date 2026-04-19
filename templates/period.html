@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Period Tracker</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='period.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+    <nav class="navbar">
+  <h2>🤎 Life Planner</h2>
+  <div>
+    <a href="/">Tasks</a>
+    <a href="/workout">Workout</a>
+    <a href="/study">Study</a>
+    <a href="/period">Period</a>
+  </div>
+</nav>
+<div class="container">
+
+<h1>🌸 Period Tracker</h1>
+
+<div class="inputs">
+    <input type="date" id="startDate">
+    <input type="date" id="endDate">
+    <button onclick="trackPeriod()">Add</button>
+</div>
+
+<h3 id="result"></h3>
+<p id="avg"></p>
+
+<div id="calendar"></div>
+
+<h3>📜 History</h3>
+<button onclick="clearHistory()">Clear History</button>
+<ul id="history"></ul>
+
+
+
+</div>
+
+<script>
+
+// ===== GLOBAL =====
+let selectedStart = null;
+let selectedEnd = null;
+let chartInstance = null;
+
+// ===== DATE HELPERS =====
+function parseDate(str){
+    let [y,m,d] = str.split("-");
+    return new Date(y, m-1, d);
+}
+
+function formatDate(d){
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function normalize(d){
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function isBetween(c,s,e){
+    return normalize(c) >= normalize(s) && normalize(c) <= normalize(e);
+}
+
+// ===== STORAGE =====
+function savePeriod(start,end){
+    let h = JSON.parse(localStorage.getItem("periods")) || [];
+    h.push({start,end});
+    localStorage.setItem("periods", JSON.stringify(h));
+}
+
+function loadHistory(){
+    let h = JSON.parse(localStorage.getItem("periods")) || [];
+    let list = document.getElementById("history");
+    list.innerHTML = "";
+
+    h.forEach(p=>{
+        let li = document.createElement("li");
+        li.innerText = `${p.start} → ${p.end}`;
+        list.appendChild(li);
+    });
+}
+
+// ===== CLEAR =====
+function clearHistory(){
+    localStorage.clear();
+    loadHistory();
+    renderCalendar(null,null,[]);
+    if(chartInstance) chartInstance.destroy();
+}
+
+// ===== AVERAGE =====
+function getAvg(){
+    let h = JSON.parse(localStorage.getItem("periods")) || [];
+    if(h.length < 2) return 28;
+
+    let arr = [];
+
+    for(let i=1;i<h.length;i++){
+        let prev = parseDate(h[i-1].start);
+        let curr = parseDate(h[i].start);
+
+        let diff = (curr-prev)/(1000*60*60*24);
+
+        if(diff >= 20 && diff <= 40){
+            arr.push(diff);
+        }
+    }
+
+    if(arr.length === 0) return 28;
+
+    return Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+}
+
+// ===== GRAPH =====
+function renderGraph() {
+
+    const history = JSON.parse(localStorage.getItem("periods")) || [];
+    if (history.length < 2) return;
+
+    const labels = [];
+    const data = [];
+
+    for (let i = 1; i < history.length; i++) {
+        const prev = parseDate(history[i - 1].start);
+        const curr = parseDate(history[i].start);
+
+        const diff = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
+
+        // keep realistic cycles only
+        if (diff >= 20 && diff <= 40) {
+            labels.push("C" + i);
+            data.push(diff);
+        }
+    }
+
+    if (data.length < 2) {
+        document.getElementById("cycleChart").style.display = "none";
+        return;
+    }
+
+    document.getElementById("cycleChart").style.display = "block";
+
+    const ctx = document.getElementById("cycleChart").getContext("2d");
+
+    if (chartInstance) chartInstance.destroy();
+
+    // 🌫️ soft vertical fade
+    const gradient = ctx.createLinearGradient(0, 0, 0, 320);
+    gradient.addColorStop(0, "rgba(255,255,255,0.28)");
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+
+    // ✨ subtle glow plugin
+    const glowPlugin = {
+        id: 'lineGlow',
+        beforeDatasetsDraw(chart) {
+            const { ctx } = chart;
+            ctx.save();
+            ctx.shadowColor = 'rgba(255,255,255,0.35)';
+            ctx.shadowBlur = 12;
+        },
+        afterDatasetsDraw(chart) {
+            chart.ctx.restore();
+        }
+    };
+
+    chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels,
+            datasets: [{
+                data,
+
+                borderColor: "#ffffff",
+                backgroundColor: gradient,
+                fill: true,
+
+                tension: 0.5,        // smoother than before
+                borderWidth: 3,
+
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: "#ffffff",
+                pointBorderWidth: 0,
+
+                cubicInterpolationMode: 'monotone'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            layout: {
+                padding: { left: 8, right: 12, top: 8, bottom: 8 }
+            },
+
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: "rgba(62,44,35,0.9)",
+                    titleColor: "#fff",
+                    bodyColor: "#fff",
+                    borderColor: "rgba(255,255,255,0.25)",
+                    borderWidth: 1,
+                    padding: 10,
+                    displayColors: false
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        color: "#f5e6d3",
+                        font: {
+                            size: 12,
+                            family: "Times New Roman"
+                        },
+                        padding: 10
+                    },
+                    grid: {
+                        display: false,
+                        drawBorder: false
+                    }
+                },
+
+                // hide Y axis for that “clean workout look”
+                y: {
+                    display: false,
+                    beginAtZero: false
+                }
+            },
+
+            elements: {
+                line: {
+                    capBezierPoints: true
+                }
+            }
+        },
+        plugins: [glowPlugin]
+    });
+}
+// ===== MAIN =====
+function trackPeriod(startInput=null,endInput=null){
+
+    let start = startInput || document.getElementById("startDate").value;
+    let end = endInput || document.getElementById("endDate").value;
+
+    if(!start||!end) return;
+
+    savePeriod(start,end);
+    loadHistory();
+
+    let h = JSON.parse(localStorage.getItem("periods"));
+    let latest = h[h.length-1];
+
+    let sDate = parseDate(latest.start);
+    let eDate = parseDate(latest.end);
+
+    let duration = Math.round((eDate-sDate)/(1000*60*60*24));
+    let avg = getAvg();
+
+    document.getElementById("avg").innerText = `Average Cycle: ${avg} days`;
+
+    let future=[];
+    let base = new Date(sDate);
+
+    for(let i=0;i<6;i++){
+        base = new Date(base);
+        base.setDate(base.getDate()+avg);
+
+        let end = new Date(base);
+        end.setDate(end.getDate()+duration);
+
+        future.push({start:new Date(base), end:new Date(end)});
+    }
+
+    document.getElementById("result").innerText =
+        "Next Period: "+future[0].start.toDateString();
+
+    renderCalendar(sDate,eDate,future);
+    renderGraph();
+}
+
+// ===== CALENDAR =====
+function renderCalendar(start,end,future){
+
+    let cal = document.getElementById("calendar");
+    cal.innerHTML="";
+
+    let year = new Date().getFullYear();
+
+    for(let m=0;m<12;m++){
+
+        let month = document.createElement("div");
+        month.classList.add("month");
+
+        let title = document.createElement("h2");
+        title.innerText = new Date(year,m).toLocaleString("default",{month:"long"});
+
+        let grid = document.createElement("div");
+        grid.classList.add("days");
+
+        let days = new Date(year,m+1,0).getDate();
+
+        for(let d=1;d<=days;d++){
+
+            let current = new Date(year,m,d);
+
+            let box = document.createElement("div");
+            box.classList.add("day");
+            box.innerText = d;
+
+            box.onclick = ()=>{
+                if(!selectedStart){
+                    selectedStart=current;
+                }else{
+                    selectedEnd=current;
+
+                    if(selectedEnd<selectedStart){
+                        [selectedStart,selectedEnd]=[selectedEnd,selectedStart];
+                    }
+
+                    trackPeriod(formatDate(selectedStart), formatDate(selectedEnd));
+
+                    selectedStart=null;
+                    selectedEnd=null;
+                }
+            };
+
+            if(start && end && isBetween(current,start,end)){
+                box.classList.add("period");
+            }
+
+            future.forEach(c=>{
+                if(isBetween(current,c.start,c.end)){
+                    box.classList.add("predicted");
+                }
+            });
+
+            grid.appendChild(box);
+        }
+
+        month.appendChild(title);
+        month.appendChild(grid);
+        cal.appendChild(month);
+    }
+}
+
+// ===== LOAD =====
+window.onload=()=>{
+    renderCalendar(null,null,[]);
+    loadHistory();
+    renderGraph();
+};
+
+</script>
+
+</body>
+</html>
