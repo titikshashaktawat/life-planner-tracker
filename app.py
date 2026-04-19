@@ -167,7 +167,12 @@ def period():
 
 
 # ===== RUN APP =====
-
+@app.route('/')
+def home():
+    db = get_db()
+    tasks = db.execute("SELECT * FROM tasks").fetchall()
+    db.close()
+    return render_template("index.html", tasks=tasks)
 import os
 
 if __name__ == "__main__":
